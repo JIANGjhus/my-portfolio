@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>梵高星夜黑胶主页</title>
+    <!-- 引入 FontAwesome 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --text-main: #ffffff;
+            --text-sub: rgba(255, 255, 255, 0.7);
+            --vinyl-size: 420px;
+            /* 提取自你图片的控制栏颜色 */
+            --icon-color: #a89f91; 
+            --icon-hover: #d5ccbf;
+            --play-bg: rgba(168, 159, 145, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+            color: var(--text-main);
+            /* 升级艺术化专业字体栈：优先使用现代系统UI字体，让排版更加清透高级 */
+            font-family: "SF Pro Text", "SF Pro Icons", "Helvetica Neue", "Helvetica", "Arial", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            font-weight: 300; /* 使用偏细的字体增加呼吸感 */
+            letter-spacing: 0.5px; /* 增加字间距，提升阅读优雅度 */
+            overflow: hidden;
+            width: 100vw; height: 100vh;
+            background-color: #000000;
+        }
+        
+        /* 新增：用于右侧标签栏的展开小箭头动画 */
+        .expand-icon { transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); float: right; color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 4px; }
+        .tag-box.open .expand-icon { transform: rotate(180deg); color: #00e5ff; }
+
+        #parallax-bg {
+            position: absolute; 
+            top: -5%; left: -5%; 
+            width: 110%; height: 110%;
+            background-size: cover;
+            background-position: center;
+            z-index: 0; pointer-events: none;
+            will-change: transform;
+            opacity: 0; /* 修改2：初始状态将名画隐藏 */
+            transition: opacity 1.5s ease, background-image 1s ease; /* 修改3：加入背景切换和平滑浮现的动画 */
+        }
+        
+       /* 修改4：当播放器展开时，名画浮现并产生“景深压暗”效果，凸显右侧重点 */
+        .expanded #parallax-bg {
+            opacity: 1;
+            /* 核心修改：将亮度压暗到 35%，并加入 6px 的模糊，瞬间拉开前后空间层级 */
+            filter: brightness(0.60) blur(3px); 
+        }
+
+        #canvas-bg {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1; pointer-events: none;
+        }
+
+        #app {
+            position: relative; width: 100%; height: 100%;
+            z-index: 2; display: flex; align-items: center;
+            will-change: transform; /* 为前景添加硬件加速 */
+        }
+
+        /* ============== 黑胶唱片总控 ============== */
+        #player-section {
+            position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            width: var(--vinyl-size); height: var(--vinyl-size);
+            transition: all 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+            cursor: pointer; z-index: 10;
+        }
+        .expanded #player-section { left: 25%; }
+
+        .vinyl-stack {
+            position: absolute; width: 100%; height: 100%;
+            border-radius: 50%; background: #000;
+            border: 1px solid rgba(255,255,255,0.05);
+            opacity: 0; transition: opacity 1s ease, transform 1s ease;
+        }
+        .expanded .vinyl-stack:nth-child(1) { opacity: 0.15; transform: translate(-15px, 15px) scale(0.96); }
+        .expanded .vinyl-stack:nth-child(2) { opacity: 0.3; transform: translate(-8px, 8px) scale(0.98); }
+
+        .vinyl-record {
+            position: absolute; width: 100%; height: 100%;
+            border-radius: 50%; 
+            box-shadow: 0 0 60px rgba(0,0,0,0.8), 10px 10px 30px rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 3;
+        }
+
+       /* 修改1：半透明白色幻彩玻璃黑胶（去除了黑色，透出名画原色） */
+        .vinyl-grooves {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            background: 
+                repeating-radial-gradient(transparent 0, rgba(255,255,255,0.15) 1px, transparent 2px),
+                radial-gradient(
+                    circle at center,
+                    transparent 0%, transparent 49.5%, 
+                    rgba(255, 255, 255, 0.2) 50%, 
+                    rgba(255, 255, 255, 0.05) 85%, 
+                    rgba(255, 255, 255, 0.3) 98%,
+                    transparent 100%
+                );
+            backdrop-filter: blur(12px); 
+            z-index: 1;
+        }
+
+        .vinyl-shine {
+            position: absolute; width: 100%; height: 100%;
+            border-radius: 50%; z-index: 4; pointer-events: none;
+            background: conic-gradient(from 20deg, transparent 0deg, rgba(255,255,255,0.15) 30deg, transparent 60deg, transparent 180deg, rgba(255,255,255,0.15) 210deg, transparent 240deg);
+            mix-blend-mode: overlay;
+        }
+
+        /* 中心封面（去除了中间的黑孔，完整展示） */
+        .album-cover {
+            width: 50%; height: 50%; 
+            border-radius: 50%; 
+            object-fit: cover; z-index: 5;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+            opacity: 0.7; transition: opacity 1s ease;
+        }
+        .expanded .album-cover { opacity: 1; }
+
+        .spinning { animation: spin 15s linear infinite; }
+        .paused { animation-play-state: paused !important; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .arc-out {
+            transform-origin: -40vw center; 
+            animation: arcLeftOut 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            pointer-events: none;
+        }
+        @keyframes arcLeftOut {
+            0% { transform: rotate(0deg); opacity: 1; }
+            100% { transform: rotate(-45deg); opacity: 0; }
+        }
+
+        /* ============== 完美还原的播放控制栏 ============== */
+        #controls {
+            position: absolute; bottom: -80px; left: 50%;
+            transform: translateX(-50%); 
+            display: flex; align-items: center; gap: 30px;
+            opacity: 0; pointer-events: none;
+            transition: opacity 1s ease 0.5s;
+        }
+        .expanded #controls { opacity: 1; pointer-events: auto; }
+        
+        .btn {
+            background: none; border: none; cursor: pointer;
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.2s ease;
+        }
+        .btn:hover { transform: scale(1.1); }
+        
+        .btn svg {
+            width: 20px; height: 20px;
+            fill: var(--icon-color);
+            transition: fill 0.3s ease;
+        }
+        .btn:hover svg { fill: var(--icon-hover); }
+
+        /* 特殊样式的播放/暂停按钮容器 */
+        .play-pause-btn {
+            width: 54px; height: 54px;
+            border-radius: 50%;
+            background-color: var(--play-bg);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .play-pause-btn:hover { background-color: rgba(168, 159, 145, 0.25); }
+        .play-pause-btn svg { width: 22px; height: 22px; }
+
+        /* ============== 右侧信息面板 ============== */
+       #info-panel {
+            position: absolute; left: 52%; top: 10%;
+            width: 42%; height: 80vh;
+            opacity: 0; pointer-events: none;
+            transition: opacity 1s ease 0.3s;
+            overflow-y: auto; /* 允许手动滚动 */
+            scrollbar-width: none; /* 隐藏原生滚动条 Firefox */
+            mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+        }
+        #info-panel::-webkit-scrollbar { display: none; } /* 隐藏原生滚动条 Chrome/Safari */
+        
+        .expanded #info-panel { opacity: 1; pointer-events: auto; }
+
+        .content-scroll-wrapper {
+            display: flex; flex-direction: column; width: 100%; transition: opacity 0.8s ease;
+        }
+        /* 核心逻辑：鼠标悬停时暂停动画，离开时恢复 */
+        #info-panel:hover .scrolling { animation-play-state: paused; }
+        
+        .scroll-content { padding-bottom: 80px; display: flex; flex-direction: column; }
+        .scrolling { animation: scrollUp 25s linear infinite; }
+        @keyframes scrollUp { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+        #info-panel::-webkit-scrollbar { width: 4px; }
+        #info-panel::-webkit-scrollbar-track { background: transparent; }
+        #info-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        #info-panel:hover::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.5); box-shadow: 0 0 10px #00e5ff; }
+
+        /* 修改2：半透明白色高透毛玻璃展板 */
+        .info-group { 
+            opacity: 0; transition: opacity 0.5s ease; 
+            padding: 40px; 
+            background: rgba(255, 255, 255, 0.1); /* 改为白色半透明底 */
+            backdrop-filter: blur(16px); 
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.25); /* 更亮的白边 */
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin: 10px;
+        }
+
+        /* 标签云 (Tags) 双列瀑布流布局 */
+        .tags-container { 
+            column-count: 2; /* 分为两列 */
+            column-gap: 12px; 
+            margin-top: 20px; 
+        }
+        .tag-box {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            break-inside: avoid; /* 防止盒子在瀑布流中被截断 */
+            margin-bottom: 12px;
+            width: 100%; box-sizing: border-box;
+        }
+        .tag-box:hover { background: rgba(255, 255, 255, 0.3); transform: translateY(-2px); box-shadow: 0 4px 15px rgba(255,255,255,0.1);}
+        .tag-title { font-size: 14px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;}
+        .tag-title i { color: #4ba3e3; font-size: 16px; width: 20px; text-align: center;} /* 图标样式 */
+        /* 新增：音乐拼图折叠海报样式 */
+        .music-collage {
+            width: 100%; border-radius: 8px; margin-top: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            max-height: 0; opacity: 0; transform: translateY(-10px);
+            transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+            object-fit: cover;
+        }
+        /* 当 tag 展开时，图片高度放大以显示，并浮现 */
+        .tag-box.open .music-collage { max-height: 400px; opacity: 1; transform: translateY(0); }
+        /* 因为加入了图片，需要覆盖原来 tag-detail 的最大高度限制，防止被截断 */
+        .tag-box.open.music-tag .tag-detail { max-height: 600px; }
+        /* 优化1：动态文字提示（进入/退出） */
+        #click-hint {
+            position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.8); font-size: 14px; letter-spacing: 2px;
+            animation: pulseHint 2s infinite; pointer-events: none; text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            white-space: nowrap;
+        }
+        #click-hint::after { content: "- 点击唱片进入 -"; }
+        .expanded #click-hint::after { content: "- 点击唱片收起 -"; color: rgba(255,255,255,0.5); }
+        @keyframes pulseHint { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+        /* 优化2：超强视觉引导的“下一首”按钮 */
+        .highlight-next { position: relative; }
+        .highlight-next::after {
+            content: "听完啦，点击下一首";
+            position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
+            background: #00e5ff; color: #000; padding: 4px 10px; border-radius: 4px;
+            font-size: 12px; font-weight: bold; white-space: nowrap;
+            animation: bounceTooltip 1s infinite; pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0, 229, 255, 0.4);
+        }
+        @keyframes bounceTooltip { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -5px); } }
+        .highlight-next svg { animation: pulseIcon 1.5s infinite !important; fill: #00e5ff !important; }
+        @keyframes pulseIcon { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px #00e5ff); } 50% { transform: scale(1.3); filter: drop-shadow(0 0 15px #00e5ff); } }
+        
+        /* 基础排版 */
+        .info-group.active { opacity: 1; position: relative; z-index: 1;}
+        .content-wrap { position: relative; z-index: 2; } /* 确保文字在背景图上方 */
+        h1 { font-size: 46px; margin-bottom: 8px; font-weight: 600; letter-spacing: 1px; color: #fff;}
+        h2 { font-size: 20px; color: rgba(255,255,255,0.6); margin-bottom: 30px; font-weight: 400; letter-spacing: 2px;}
+        .details { font-size: 15px; color: rgba(255,255,255,0.85); line-height: 2; }
+        .details p { margin-bottom: 15px; text-align: justify; }
+        .highlight { color: #fff; font-size: 16px; font-weight: 500; border-bottom: 1px solid rgba(255,255,255,0.3);}
+
+        /* 优化3：联系人卡片式 Avatar (用于第一页) */
+        .avatar-header {
+            display: inline-flex; align-items: center; gap: 15px; margin-bottom: 25px;
+            background: rgba(0,0,0,0.3); padding: 8px 20px 8px 8px; border-radius: 50px; 
+            border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .avatar-img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; }
+        .avatar-name { font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; line-height: 1.2;}
+        .avatar-title { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; line-height: 1;}
+        .status-dot { width: 8px; height: 8px; background: #00ff88; border-radius: 50%; box-shadow: 0 0 8px #00ff88; animation: breatheDot 2s infinite;}
+        @keyframes breatheDot { 0%, 100% { opacity: 0.5; box-shadow: 0 0 4px #00ff88;} 50% { opacity: 1; box-shadow: 0 0 12px #00ff88;} }
+
+        /* 优化4：破框而出的拍立得照片 (用于第二页) */
+        .polaroid-img {
+            position: absolute; right: -25px; top: -10px; /* 绝对定位，偏出毛玻璃右上角 */
+            width: 160px; height: 190px; object-fit: cover;
+            border: 8px solid #f0f0f0; border-bottom-width: 25px; /* 模拟拍立得相纸白边 */
+            border-radius: 2px; box-shadow: 5px 15px 30px rgba(0,0,0,0.5);
+            transform: rotate(6deg); z-index: 10; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: sepia(0.2) contrast(1.1); /* 轻微复古滤镜 */
+        }
+        .polaroid-img:hover { transform: rotate(0deg) scale(1.1); z-index: 20;}
+
+        /* 优化5：赛博朋克风镂空底图压字 (用于第三页) */
+        .cyber-bg-img {
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 0; opacity: 0.25; /* 底层弱透明度 */
+            clip-path: polygon(0 0, 100% 15%, 100% 100%, 0 85%); /* 倾斜几何切割 */
+            filter: grayscale(100%) contrast(150%); /* 强对比黑白化 */
+            border-radius: 24px; pointer-events: none;
+        }
+
+        /* 进度条与时间轴基础样式 */
+        .skill-name { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; font-weight: 500;}
+        .skill-bar-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+        .skill-bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; }
+        .timeline { border-left: 2px solid rgba(255,255,255,0.15); padding-left: 24px; margin-top: 20px; }
+        .timeline-item { position: relative; margin-bottom: 28px; }
+        .timeline-item::before { content: ''; position: absolute; left: -31px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--text-main); border: 2px solid #000; }
+        .time-date { font-size: 13px; color: rgba(255,255,255,0.5); font-family: monospace; letter-spacing: 1px;}
+        .time-title { font-size: 18px; font-weight: 600; color: #fff; margin: 4px 0; }
+        .details::after { content: ""; display: table; clear: both; }
+        /* 新增：电影开场字幕样式 */
+        #movie-lyrics {
+            position: absolute; bottom: 15%; left: 50%; transform: translateX(-50%);
+            text-align: center; pointer-events: none; z-index: 5;
+            width: 100%;
+        }
+        #movie-lyrics p {
+            font-size: 18px; color: rgba(255,255,255,0.9);
+            letter-spacing: 6px; margin-bottom: 16px;
+            opacity: 0; transform: translateY(30px);
+            transition: all 1.5s cubic-bezier(0.25, 1, 0.5, 1);
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+            will-change: transform, text-shadow;
+        }
+        /* 当赋予 .show 类时，逐行交错浮现 */
+        #movie-lyrics.show p { opacity: 1; transform: translateY(0); }
+        #movie-lyrics.show p:nth-child(1) { transition-delay: 0.2s; }
+        #movie-lyrics.show p:nth-child(2) { transition-delay: 1.2s; }
+        #movie-lyrics.show p:nth-child(3) { transition-delay: 2.2s; }
+        #movie-lyrics.show p:nth-child(4) { transition-delay: 3.2s; }
+        #movie-lyrics.show p:nth-child(5) { transition-delay: 4.2s; }
+        /* ==========================================
+           手机端适配 (Mobile Responsiveness)
+           ========================================== */
+        @media screen and (max-width: 800px) {
+            :root {
+                --vinyl-size: 260px; /* 手机上黑胶变小 */
+            }
+            
+            /* 展开时，黑胶不往左走，而是往上走，并且进一步缩小 */
+            .expanded #player-section { 
+                left: 50%; top: 25%; 
+                transform: translate(-50%, -50%) scale(0.85); 
+            }
+            
+            /* 播放控制栏调整位置，以免被文字挡住 */
+            #controls { bottom: -60px; gap: 20px; }
+            .btn svg { width: 18px; height: 18px; }
+            .play-pause-btn { width: 48px; height: 48px; }
+            
+            /* 右侧信息面板变为下方信息面板 */
+            #info-panel {
+                width: 90%; left: 5%; top: 45%; height: 50vh;
+            }
+            
+            h1 { font-size: 32px; }
+            h2 { font-size: 16px; margin-bottom: 20px;}
+            
+            /* 第一页的头像缩小 */
+            .avatar-header { gap: 10px; padding: 6px 15px 6px 6px; }
+            .avatar-img { width: 36px; height: 36px; }
+            .avatar-name { font-size: 14px; }
+            
+            /* 标签变为单列布局 */
+            .tags-container { column-count: 1; }
+            
+            /* 拍立得照片稍微改小并靠右，防止遮挡文字过多 */
+            .polaroid-img { width: 110px; height: 130px; right: -10px; border-width: 5px; border-bottom-width: 18px; }
+            
+            /* 电影歌词位置调整 */
+            #movie-lyrics { bottom: 10%; }
+            #movie-lyrics p { font-size: 14px; letter-spacing: 4px; margin-bottom: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+     <!-- 插入视差背景图层 -->
+    <div id="parallax-bg"></div>
+    <canvas id="canvas-bg"></canvas>
+
+    <div id="app">
+        <!-- 新增：真实的全局背景音乐 (请确保路径正确) -->
+        <audio id="global-audio" src="xun.mp3" loop></audio>
+        
+        <!-- 新增：电影级开场字幕容器 -->
+        <div id="movie-lyrics">
+            <p>我 也许是 渺小漂流的鱼</p>
+            <p>是最平庸 的一首诗</p>
+            <p>但我 深爱着 阳光泥土空气</p>
+            <p>想用力 自在大口呼吸</p>
+            <p>去看看 未见 的广袤</p>
+        </div>
+
+        <div id="player-section" onclick="toggleExpand()">
+            <div class="vinyl-stack"></div>
+            <div class="vinyl-stack"></div>
+            
+            <div class="vinyl-record spinning paused" id="active-vinyl">
+                <div class="vinyl-grooves"></div>
+                <div class="vinyl-shine"></div>
+                <img class="album-cover" id="current-cover" src="https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?q=80&w=800&auto=format&fit=crop" alt="cover">
+            </div>
+            
+            <!-<!-- 用户引导文字 (文字内容已交由 CSS 动态控制) -->
+            <div id="click-hint"></div>
+
+            <div id="controls" onclick="event.stopPropagation()">
+                <button class="btn" onclick="console.log('Toggle Loop')"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg></button>
+                <button class="btn" onclick="changeTrack(-1)"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+                <button class="btn play-pause-btn" id="play-btn" onclick="togglePlay()">
+                    <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <!-- 新增 ID: next-btn -->
+                <button class="btn" id="next-btn" onclick="changeTrack(1)"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+                <!-- 歌单列表按钮 -->
+                <button class="btn" onclick="console.log('Toggle Playlist')">
+                    <svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="info-panel">
+            <div class="content-scroll-wrapper paused" id="scroll-wrapper">
+                <div class="scroll-content" id="content-inner-1"></div>
+                <div class="scroll-content" id="content-inner-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+       const tracks = [
+         {
+                bgImage: "url('https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1920px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg')",
+                cover: "./cover1.jpg",
+                title: "Information", subtitle: "个人基建与技能栈",
+                details: `
+                    <!-- 极简联系人卡片 Avatar -->
+                    <div class="avatar-header">
+                        <img src="./avatar.jpg" class="avatar-img">
+                        <div>
+                            <div class="avatar-name">江雪慧 JIANG XUEHUI <span class="status-dot"></span></div>
+                            <div class="avatar-title">深圳大学 传播学院</div>
+                        </div>
+                    </div>
+                    
+                    <div class="content-wrap">
+                        <p>探索传播和艺术边界，擅长发散创作，喜欢创意思维。</p>
+                        
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin: 20px 0 25px 0; font-size: 13px; color: rgba(255,255,255,0.8); font-family: monospace;">
+                            <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px;"><i class="fas fa-user" style="color:#00e5ff;"></i> 18岁</span>
+                            <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px;"><i class="fas fa-graduation-cap" style="color:#00e5ff;"></i> 本科</span>
+                            <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px;"><i class="fas fa-envelope" style="color:#00e5ff;"></i> justioning@outlook.com</span>
+                        </div>
+
+                        <div class="tags-container">
+                            <div class="tag-box" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-fire" style="margin-right:8px;"></i> Ability of Learning <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">
+                                    <!-- 修复Bug：进度条移入 detail 内部，随点击一起展开收起 -->
+                                    <div class="skill-bar-bg" style="margin: 8px 0 10px 0;"><div class="skill-bar-fill" style="width: 80%; background: #00e5ff; box-shadow: 0 0 10px #00e5ff;"></div></div>
+                                    保持强烈的好奇心与极高的学习热情，能够快速跨界吸收新知识，并将其转化为实践创意。
+                                </div>
+                            </div>
+                            
+                            <div class="tag-box" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-film" style="margin-right:8px;"></i> Edit 剪辑 <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">
+                                    <div class="skill-bar-bg" style="margin: 8px 0 10px 0;"><div class="skill-bar-fill" style="width: 70%; background: #00e5ff; box-shadow: 0 0 10px #00e5ff;"></div></div>
+                                    熟练使用达芬奇与剪映。掌握叙事节奏与视觉情绪调色，擅长用视听语言讲述具有网感的故事。
+                                </div>
+                            </div>
+                            
+                            <div class="tag-box" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-robot" style="margin-right:8px;"></i> AI Creation <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">
+                                    <div class="skill-bar-bg" style="margin: 8px 0 10px 0;"><div class="skill-bar-fill" style="width: 60%; background: #00e5ff; box-shadow: 0 0 10px #00e5ff;"></div></div>
+                                    积极拥抱 AI 生产力，善于利用提示词工程与模型辅助创意生成、分镜设计与文案创作。
+                                </div>
+                            </div>
+                            
+                            <div class="tag-box" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-camera" style="margin-right:8px;"></i> Photography <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">
+                                    <div class="skill-bar-bg" style="margin: 8px 0 10px 0;"><div class="skill-bar-fill" style="width: 70%; background: #00e5ff; box-shadow: 0 0 10px #00e5ff;"></div></div>
+                                    对光影与构图有敏锐直觉，能够通过镜头捕捉瞬间的艺术张力与人文呼吸感。
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                bgImage: "url('https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/1920px-Monet_-_Impression%2C_Sunrise.jpg')",
+                cover: "./cover2.jpg",
+                title: "Experience", subtitle: "经历与时间轴",
+                details: `
+                   <img src="./photo.jpg" class="polaroid-img">
+                    
+                    <div class="content-wrap timeline">
+                        <!-- 大一上 -->
+                        <div class="timeline-item">
+                            <div class="time-date">2025.09 - 2026.01</div>
+                            <div class="time-title" style="color: #ff9d00;"><i class="fas fa-pen-nib"></i> 大一上：从0到1的融媒体实践</div>
+                            <p>我是一名对内容创作充满热情的大一学生，具备策划、拍摄、剪辑全流程实践基础。在校融媒体中心拥有团队协作经历，致力于从大学生视角出发，创作有深度、有共鸣的成长思考类内容。</p>
+                        </div>
+                        
+                        <!-- 大一下 -->
+                        <div class="timeline-item">
+                            <div class="time-date">2026.02 - 2026.06</div>
+                            <div class="time-title" style="color: #ff9d00;"><i class="fas fa-microchip"></i> 大一下：前沿科技与AI探索</div>
+                            <p>熟练使用 ChatGPT、Gemini 等大语言模型，充分实践 AI 在文字领域对人类发展的帮助。目前正在探索 AI 编程领域，并取得初步进展。在职业规划中，我正不断尝试各个领域，去探索真正适合的未来。</p>
+                        </div>
+
+                        <!-- 未来展望 -->
+                        <div class="timeline-item" style="margin-bottom: 0;">
+                            <div class="time-date">2026.09 — Future</div>
+                            <div class="time-title" style="color: #00e5ff; font-weight: 300; font-style: italic;"><i class="fas fa-wind"></i> 等候下一场季风……</div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                bgImage: "url('https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/The_Scream.jpg/1200px-The_Scream.jpg')",
+                cover: "./cover3.jpg", // 替换为封面3
+                title: "Inspirations", subtitle: "MBTI与精神碎片",
+                details: `
+                    <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop" class="cyber-bg-img">
+                    
+   <div class="content-wrap">
+                        <p><span class="highlight">INFJ / 提倡者：</span> 敏锐的洞察者，在喧嚣的数字废墟中寻找灵魂的共鸣与深度的连结。</p>
+                        
+                        <!-- 第三页新增：点击提示语 -->
+                        <div style="text-align: right; font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 8px;">
+                            <i class="fas fa-hand-pointer"></i> 点击卡片展开详情
+                        </div>
+
+                        <div class="tags-container">
+                            <!-- 网易云音乐爱好 -->
+                            <div class="tag-box music-tag" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-headphones-alt" style="margin-right:8px;"></i> 沉浸式听歌 (4200h+) <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">
+                                    音乐是我对抗现实重力的缓冲舱。杂食系听众，风格不设限，只听灵魂的共振。每一种旋律都是探索内心的线索。
+                                    <img src="./music-grid.jpg" class="music-collage">
+                                </div>
+                            </div>
+                            
+                            <!-- 岩中花束播客 -->
+                            <div class="tag-box" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-microphone-alt" style="margin-right:8px;"></i> 播客：《岩中花束》 <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">近期最爱。在坚硬的现实岩石中，寻找女性温柔而坚韧的力量，汲取向内生长的养分。</div>
+                            </div>
+                            
+                            <!-- 探索：人文与媒介交汇 -->
+                            <div class="tag-box" onclick="this.classList.toggle('open')">
+                                <div class="tag-title" style="display: block;"><i class="fas fa-book-open" style="margin-right:8px;"></i> 探索：人文与媒介交汇 <i class="fas fa-chevron-down expand-icon"></i></div>
+                                <div class="tag-detail">作为传播学学子，我始终关注技术（AI/视觉/代码）如何更有温度地服务于人的情感表达。</div>
+                            </div>
+                        </div>
+                    </div>
+                `
+            }
+        ];
+
+        let isExpanded = false;
+        let isPlaying = false;
+        let currentTrack = 0;
+
+        const playerSection = document.getElementById('player-section');
+        const activeVinyl = document.getElementById('active-vinyl');
+        const currentCover = document.getElementById('current-cover');
+        const iconPlay = document.getElementById('icon-play');
+        const iconPause = document.getElementById('icon-pause');
+        const scrollWrapper = document.getElementById('scroll-wrapper');
+        const contentInner1 = document.getElementById('content-inner-1');
+        const contentInner2 = document.getElementById('content-inner-2');
+
+       function renderContent() {
+            const track = tracks[currentTrack];
+            const html = `<div class="info-group active"><h1>${track.title}</h1><h2>${track.subtitle}</h2><div class="details">${track.details}</div></div>`;
+            contentInner1.innerHTML = html; contentInner2.innerHTML = html;
+            currentCover.src = track.cover;
+            
+            // 新增：动态替换带有暗角遮罩的名画背景
+            const parallaxBg = document.getElementById('parallax-bg');
+            parallaxBg.style.backgroundImage = `radial-gradient(circle at center, transparent 30%, rgba(2, 5, 15, 0.5) 100%), ${track.bgImage}`;
+        }
+        renderContent();
+
+       let highlightTimeout; 
+        
+        // 新增：真实的 Web Audio API 引擎
+        let audioCtx, analyzer, dataArray, bassPulse = 0;
+        const globalAudio = document.getElementById('global-audio');
+
+        function initAudioEngine() {
+            if (audioCtx) return; 
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            analyzer = audioCtx.createAnalyser();
+            analyzer.fftSize = 256;
+            dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+            // 将 HTML 的 audio 标签接入分析器
+            const source = audioCtx.createMediaElementSource(globalAudio);
+            source.connect(analyzer);
+            analyzer.connect(audioCtx.destination);
+        }
+
+        function toggleExpand() {
+            if (!audioCtx) initAudioEngine();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const lyricsWrap = document.getElementById('movie-lyrics');
+
+            if (isExpanded) {
+                // 【收起状态】：黑胶归位，展示电影字幕
+                isExpanded = false;
+                playerSection.classList.remove('expanded');
+                document.body.classList.remove('expanded');
+                if (isPlaying) togglePlay(); // 暂停右侧滚动
+                
+                // 核心逻辑：显示歌词，保持音乐播放，让歌词随着音乐脉冲震动！
+                lyricsWrap.classList.add('show');
+                
+                // 新增：永久隐藏新手提示词，给电影歌词让出纯净的视觉空间！
+                document.getElementById('click-hint').style.display = 'none'; 
+
+            } else {
+                // 【展开状态】：进入个人主页
+                isExpanded = true;
+                playerSection.classList.add('expanded');
+                document.body.classList.add('expanded');
+                lyricsWrap.classList.remove('show'); // 隐藏歌词
+                
+                // 自动播放全局音乐与右侧内容
+                globalAudio.play();
+                if (!isPlaying) setTimeout(togglePlay, 500); 
+            }
+        }
+
+       function togglePlay() {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                // 【核心修改】：点击播放键时，恢复背景音乐播放
+                if (globalAudio.paused) globalAudio.play(); 
+
+                iconPlay.style.display = 'none';
+                iconPause.style.display = 'block';
+                activeVinyl.classList.remove('paused');
+                if (!scrollWrapper.classList.contains('scrolling')) scrollWrapper.classList.add('scrolling');
+                scrollWrapper.classList.remove('paused');
+                
+                // 如果当前是第一页，播放 6 秒后强调“下一首”按钮
+                if (currentTrack === 0) {
+                    highlightTimeout = setTimeout(() => { document.getElementById('next-btn').classList.add('highlight-next'); }, 6000); 
+                }
+            } else {
+                // 【核心修改】：点击暂停键时，立刻暂停背景音乐
+                globalAudio.pause(); 
+
+                iconPlay.style.display = 'block';
+                iconPause.style.display = 'none';
+                activeVinyl.classList.add('paused'); scrollWrapper.classList.add('paused');
+                clearTimeout(highlightTimeout); document.getElementById('next-btn').classList.remove('highlight-next');
+            }
+        }
+
+        function changeTrack(direction) {
+            if (!isExpanded) return;
+            clearTimeout(highlightTimeout); document.getElementById('next-btn').classList.remove('highlight-next');
+
+            const clone = activeVinyl.cloneNode(true); clone.id = '';
+            clone.style.transform = window.getComputedStyle(activeVinyl).getPropertyValue('transform');
+            clone.classList.remove('spinning', 'paused');
+            playerSection.appendChild(clone);
+            requestAnimationFrame(() => clone.classList.add('arc-out'));
+            clone.addEventListener('animationend', () => clone.remove());
+
+            currentTrack = (currentTrack + direction + tracks.length) % tracks.length;
+            scrollWrapper.style.opacity = 0;
+            setTimeout(() => {
+                renderContent();
+                scrollWrapper.classList.remove('scrolling'); void scrollWrapper.offsetWidth; 
+                if (isPlaying) {
+                    scrollWrapper.classList.add('scrolling');
+                    if (currentTrack === 0) highlightTimeout = setTimeout(() => { document.getElementById('next-btn').classList.add('highlight-next'); }, 6000);
+                }
+                scrollWrapper.style.opacity = 1;
+            }, 500);
+        }
+
+     // ==========================================
+        //  新增：视差呼吸感监听逻辑
+        // ==========================================
+let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
+        const bgParallax = document.getElementById('parallax-bg');
+        const appParallax = document.getElementById('app');
+        
+        // 新增：用于记录极轻量级流体轨迹的数组
+        let fluidTrails = [];
+
+        document.addEventListener('mousemove', (e) => {
+            targetX = (e.clientX / window.innerWidth - 0.5) * 2; 
+            targetY = (e.clientY / window.innerHeight - 0.5) * 2;
+            
+            // 鼠标移动时产生液体轨迹点
+            fluidTrails.push({ x: e.clientX, y: e.clientY, life: 1.0 });
+        });
+
+        // ==========================================
+        //  Canvas 引擎：透视渲染使得梵高背景可见
+        // ==========================================
+        const canvas = document.getElementById('canvas-bg');
+        const ctx = canvas.getContext('2d'); 
+        let width, height;
+
+        function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize); resize();
+
+        // (保留之前的 LaserStream 和 NanoDust 类的定义)
+        class LaserStream {
+            constructor() { this.reset(); this.x = Math.random() * width; }
+            reset() { this.y = Math.random() * height; this.length = Math.random() * 300 + 150; this.speed = Math.random() * 1.8 + 0.8; this.opacity = Math.random() * 0.6 + 0.2; this.thickLeft = Math.random() * 0.5 + 0.1; this.thickRight = Math.random() * 4 + 2; this.x = -this.length; }
+            update() { this.x += this.speed; if (this.x > width + 100) this.reset(); }
+            draw() {
+                let grad = ctx.createLinearGradient(this.x, this.y, this.x + this.length, this.y);
+                grad.addColorStop(0, '#d500f9'); grad.addColorStop(0.35, '#ff7b00'); grad.addColorStop(0.65, '#ffea00'); grad.addColorStop(1, '#00e5ff');   
+                ctx.beginPath(); ctx.moveTo(this.x, this.y - this.thickLeft / 2); ctx.lineTo(this.x + this.length, this.y - this.thickRight / 2); ctx.lineTo(this.x + this.length, this.y + this.thickRight / 2); ctx.lineTo(this.x, this.y + this.thickLeft / 2); ctx.closePath();
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(255, 255, 255, 0.9)'; ctx.fillStyle = grad; ctx.globalAlpha = this.opacity; ctx.fill(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+            }
+        }
+
+        class NanoDust {
+            constructor() { this.reset(true); }
+            reset(randomStart = false) {
+                this.originX = width * 0.25; this.originY = height * 0.5;
+                const angle = Math.random() * Math.PI * 2; const r = 210 + Math.random() * 30; 
+                this.x = this.originX + Math.cos(angle) * r; this.y = this.originY + Math.sin(angle) * r;
+                const speed = Math.random() * 0.6 + 0.1; this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                this.size = Math.random() * 1.0 + 0.2; this.maxLife = Math.random() * 180 + 60; this.life = randomStart ? Math.random() * this.maxLife : 0;
+            }
+            update() {
+                if (!isExpanded) return;
+                this.x += this.vx; this.y += this.vy; this.life++; if (this.life >= this.maxLife) this.reset();
+            }
+        }
+
+        const lasers = Array.from({ length: 65 }, () => new LaserStream());
+        const dusts = Array.from({ length: 6000 }, () => new NanoDust());
+        const lyricsPs = document.querySelectorAll('#movie-lyrics p'); // 获取所有歌词行
+
+        function animate() {
+            currentX += (targetX - currentX) * 0.05;
+            currentY += (targetY - currentY) * 0.05;
+            bgParallax.style.transform = `translate(${currentX * 25}px, ${currentY * 25}px)`;
+            appParallax.style.transform = `translate(${-currentX * 15}px, ${-currentY * 15}px)`;
+
+            // 新增：提取真实音乐脉冲
+            if (analyzer && globalAudio.currentTime > 0 && !globalAudio.paused) {
+                analyzer.getByteFrequencyData(dataArray);
+                let bassSum = 0;
+                for(let i=0; i<5; i++) bassSum += dataArray[i];
+                bassPulse = (bassSum / 5) / 255; // 转换为 0~1 的脉冲系数
+
+                // 让歌词随着脉冲发光震动
+                if (!isExpanded) {
+                    lyricsPs.forEach(p => {
+                        p.style.transform = `translateY(${p.style.opacity > 0 ? 0 : 30}px) scale(${1 + bassPulse * 0.03})`;
+                        p.style.textShadow = `0 0 ${10 + bassPulse * 30}px rgba(255,255,255,${0.3 + bassPulse * 0.5})`;
+                    });
+                }
+            } else {
+                bassPulse = 0;
+            }
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (!isExpanded) {
+                ctx.save();
+                ctx.beginPath(); ctx.arc(width / 2, height / 2, 210, 0, Math.PI * 2); ctx.clip();
+                lasers.forEach(l => { l.update(); l.draw(); });
+                ctx.restore();
+            } else {
+                lasers.forEach(l => { l.update(); l.draw(); });
+                ctx.fillStyle = '#ffffff';
+                for (let i = 0; i < dusts.length; i++) {
+                    let d = dusts[i]; d.update();
+                    ctx.globalAlpha = Math.sin((d.life / d.maxLife) * Math.PI) * 0.85;
+                    ctx.fillRect(d.x, d.y, d.size, d.size);
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            // 新增：极轻量级流体渲染（水波纹/颜料抹开感）
+            ctx.globalCompositeOperation = 'screen'; // 让颜色融合提亮
+            for (let i = fluidTrails.length - 1; i >= 0; i--) {
+                let pt = fluidTrails[i];
+                pt.life -= 0.02; // 轨迹消散速度
+                if (pt.life <= 0) { fluidTrails.splice(i, 1); continue; }
+                
+                let r = 50 * pt.life; // 半径随时间减小
+                let grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+                // 使用一种带有荧光感的浅蓝紫，模拟星空的划痕
+                grad.addColorStop(0, `rgba(120, 200, 255, ${pt.life * 0.15})`); 
+                grad.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over'; // 恢复默认混合模式
+
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
