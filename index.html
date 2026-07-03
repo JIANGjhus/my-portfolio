@@ -349,6 +349,38 @@
         #movie-lyrics.show p:nth-child(3) { transition-delay: 2.2s; }
         #movie-lyrics.show p:nth-child(4) { transition-delay: 3.2s; }
         #movie-lyrics.show p:nth-child(5) { transition-delay: 4.2s; }
+        .portfolio-intro { margin-bottom: 18px; color: rgba(255,255,255,0.82); }
+        .portfolio-list { display: flex; flex-direction: column; gap: 18px; }
+        .portfolio-item { padding-left: 18px; border-left: 2px solid rgba(255,255,255,0.18); }
+        .portfolio-item.featured { border-left-color: rgba(0,229,255,0.75); }
+        .portfolio-kicker { font-size: 12px; color: #00e5ff; margin-bottom: 6px; letter-spacing: 1px; }
+        .portfolio-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+        .portfolio-title { font-size: 18px; font-weight: 600; color: #fff; line-height: 1.45; }
+        .portfolio-meta { font-size: 12px; color: rgba(255,255,255,0.54); white-space: nowrap; margin-top: 3px; }
+        .portfolio-summary { margin: 8px 0 10px; color: rgba(255,255,255,0.8); line-height: 1.8; }
+        .portfolio-facts { display: grid; gap: 6px; margin: 10px 0; font-size: 13px; color: rgba(255,255,255,0.74); line-height: 1.65; }
+        .portfolio-facts strong { color: rgba(255,255,255,0.95); font-weight: 600; margin-right: 6px; }
+        .portfolio-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .portfolio-tags span {
+            font-size: 12px; color: rgba(255,255,255,0.78);
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.08);
+            border-radius: 6px; padding: 4px 8px;
+        }
+        .portfolio-video, .portfolio-image {
+            width: 100%; aspect-ratio: 16 / 9; margin: 12px 0;
+            border: 1px solid rgba(255,255,255,0.18); border-radius: 8px;
+            overflow: hidden; background: rgba(0,0,0,0.35);
+        }
+        .portfolio-video iframe, .portfolio-image img { width: 100%; height: 100%; border: 0; display: block; object-fit: cover; }
+        .portfolio-action { margin-top: 12px; }
+        .portfolio-action a, .portfolio-action span {
+            display: inline-flex; align-items: center; min-height: 32px; padding: 6px 12px;
+            border-radius: 6px; font-size: 13px; text-decoration: none;
+        }
+        .portfolio-action a { color: #001014; background: #00e5ff; }
+        .portfolio-action span { color: rgba(255,255,255,0.56); border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); }
+
         /* ==========================================
            手机端适配 (Mobile Responsiveness)
            ========================================== */
@@ -383,6 +415,8 @@
             
             /* 标签变为单列布局 */
             .tags-container { column-count: 1; }
+            .portfolio-head { flex-direction: column; gap: 4px; }
+            .portfolio-meta { white-space: normal; }
             
             /* 拍立得照片稍微改小并靠右，防止遮挡文字过多 */
             .polaroid-img { width: 110px; height: 130px; right: -10px; border-width: 5px; border-bottom-width: 18px; }
@@ -422,7 +456,7 @@
                 <img class="album-cover" id="current-cover" src="https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?q=80&w=800&auto=format&fit=crop" alt="cover">
             </div>
             
-            <!-<!-- 用户引导文字 (文字内容已交由 CSS 动态控制) -->
+            <!-- 用户引导文字 (文字内容已交由 CSS 动态控制) -->
             <div id="click-hint"></div>
 
             <div id="controls" onclick="event.stopPropagation()">
@@ -449,11 +483,57 @@
         </div>
     </div>
 
+    <script src="./portfolio-data.js"></script>
     <script>
+       const portfolioWorks = window.portfolioWorks || [];
+
+       function renderPortfolioMedia(work) {
+          if (work.video) {
+             return `
+                <div class="portfolio-video">
+                   <iframe src="https://player.bilibili.com/player.html?bvid=${work.video.bvid}&page=1&autoplay=0&t=${work.video.start || 0}" allowfullscreen></iframe>
+                </div>
+             `;
+          }
+          const image = work.cover || work.screenshot;
+          return image ? `<div class="portfolio-image"><img src="${image}" alt="${work.title}"></div>` : '';
+       }
+
+       function renderPortfolioAction(work) {
+          const link = work.link || {};
+          return link.url
+             ? `<a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.label || '查看作品'}</a>`
+             : `<span>即将更新</span>`;
+       }
+
+       function renderPortfolioWorks() {
+          return portfolioWorks.map((work, index) => {
+             const featured = work.featured || index < 3;
+             return `
+                <article class="portfolio-item ${featured ? 'featured' : ''}">
+                   ${featured ? '<div class="portfolio-kicker">代表作品</div>' : ''}
+                   <div class="portfolio-head">
+                      <div class="portfolio-title">${work.title}</div>
+                      <div class="portfolio-meta">${work.name || work.type}</div>
+                   </div>
+                   ${renderPortfolioMedia(work)}
+                   <p class="portfolio-summary">${work.summary}</p>
+                   <div class="portfolio-facts">
+                      <div><strong>项目类型</strong>${work.type}</div>
+                      <div><strong>我的角色</strong>${work.role}</div>
+                      <div><strong>使用工具</strong>${work.tools}</div>
+                   </div>
+                   <div class="portfolio-tags">${work.tags.map(tag => `<span>${tag}</span>`).join('')}</div>
+                   <div class="portfolio-action">${renderPortfolioAction(work)}</div>
+                </article>
+             `;
+          }).join('');
+       }
        const tracks = [
          {
                 bgImage: "url('star.jpg')",
-                cover: "./cover1.jpg",
+                cover: "./album-cover-info.jpg",
+                fallbackCover: "./cover1.jpg",
                 title: "Information", subtitle: "个人基建与技能栈",
                 details: `
                     <!-- 极简联系人卡片 Avatar -->
@@ -512,11 +592,25 @@
                 `
             },
             {
+                bgImage: "url('star.jpg')",
+                cover: "./album-cover-portfolio.jpg",
+                title: "Portfolio", subtitle: "作品集与实践成果",
+                details: `
+                    <div class="content-wrap">
+                        <p class="portfolio-intro">按代表作品优先排序，集中呈现竞赛获奖、AIGC 视频、AI 互动产品、个人网站与视频创作实践，便于快速浏览能力结构。</p>
+                        <div class="portfolio-list">
+                            ${renderPortfolioWorks()}
+                        </div>
+                    </div>
+                `
+            },
+            {
                 bgImage: "url('Sunrise.jpg')",
-                cover: "./cover2.jpg",
+                cover: "./album-cover-experience.jpg",
+                fallbackCover: "./cover2.jpg",
                 title: "Experience", subtitle: "经历与时间轴",
                 details: `
-                   <img src="./photo.jpg" class="polaroid-img">
+                   <img src="./experience-polaroid.jpg" class="polaroid-img" onerror="this.onerror=null;this.src='./photo.jpg'">
                     
                     <div class="content-wrap timeline">
                         <!-- 大一上 -->
@@ -600,6 +694,10 @@
             const track = tracks[currentTrack];
             const html = `<div class="info-group active"><h1>${track.title}</h1><h2>${track.subtitle}</h2><div class="details">${track.details}</div></div>`;
             contentInner1.innerHTML = html; contentInner2.innerHTML = html;
+            currentCover.onerror = () => {
+                currentCover.onerror = null;
+                if (track.fallbackCover) currentCover.src = track.fallbackCover;
+            };
             currentCover.src = track.cover;
             
             // 新增：动态替换带有暗角遮罩的名画背景
@@ -716,7 +814,6 @@
         // ==========================================
 let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
         const bgParallax = document.getElementById('parallax-bg');
-        const appParallax = document.getElementById('app');
         
         // 新增：用于记录极轻量级流体轨迹的数组
         let fluidTrails = [];
@@ -726,7 +823,8 @@ let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
             targetY = (e.clientY / window.innerHeight - 0.5) * 2;
             
             // 鼠标移动时产生液体轨迹点
-            fluidTrails.push({ x: e.clientX, y: e.clientY, life: 1.0 });
+            const rect = canvas.getBoundingClientRect();
+            fluidTrails.push({ x: e.clientX - rect.left, y: e.clientY - rect.top, life: 1.0 });
         });
 
         // ==========================================
@@ -736,7 +834,13 @@ let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
         const ctx = canvas.getContext('2d'); 
         let width, height;
 
-        function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+        function resize() {
+            width = window.innerWidth; height = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+            canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
         window.addEventListener('resize', resize); resize();
 
         // (保留之前的 LaserStream 和 NanoDust 类的定义)
@@ -775,7 +879,6 @@ let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
             currentX += (targetX - currentX) * 0.05;
             currentY += (targetY - currentY) * 0.05;
             bgParallax.style.transform = `translate(${currentX * 25}px, ${currentY * 25}px)`;
-            appParallax.style.transform = `translate(${-currentX * 15}px, ${-currentY * 15}px)`;
 
             // 新增：提取真实音乐脉冲
             if (analyzer && globalAudio.currentTime > 0 && !globalAudio.paused) {
